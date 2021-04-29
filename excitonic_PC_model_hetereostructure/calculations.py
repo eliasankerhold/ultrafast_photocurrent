@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 alpha = np.array([1, 1])  # coupling constants
 tau = np.array([1, 1])  # photoresponse time
 gamma = np.array([1, 1])  # exciton-exciton annihilation rate
-N0 = np.array([1, 1])  # initial exciton densities
 energy_thresholds = np.array([0, 0])  # monolayer band gaps
+absorption_coeff = np.array([1, 1])  # absorption coefficients of both monolayers
 
 # SIMULATION PARAMETERS
 # exciton density simulation
@@ -18,6 +18,9 @@ pulse_energies = np.array([1, 1])  # energy of first and second pulse
 pulse_width = 1e-35  # pulse width of delta approximation
 pulse_height = 1e15  # pulse height of delta approximation
 delta_t = 5  # pulse delay
+laser_r = np.array([1, 1])  # illuminated radii of first and second pulse
+laser_f = np.array([1, 1])  # frequencies of first and second laser pulse
+laser_p = np.array([1, 1])  # time-averaged laser powers of first and second pulse
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (-50, 50)  # delta_t range
@@ -27,6 +30,8 @@ extractions = np.array([1, 1])  # exciton extraction factors
 ########################################################################################################################
 time_vals = np.linspace(time_range[0], time_range[1], diff_solver_resolution)
 delta_t_step = int(delta_t / ((time_range[1] - time_range[0]) / diff_solver_resolution))
+N0 = absorption_coeff / (laser_f * np.pi * np.square(laser_r) * pulse_energies)  # initial exciton densities
+print(N0)
 
 
 def delta_approx(x, smearing=0, p_height=pulse_height):
@@ -140,6 +145,22 @@ def lock_in_photocurrent_continuous(delta_t, single_pulse, t_span, t_eval, a_fac
 
 
 def lock_in_photocurrent_discrete(delta_t, single_pulse, t_eval, a_fac, E2):
+    """
+    Evaluates the delta_t - dependent PC integral using trapezoid rule.
+
+    :param delta_t: pulse delay
+    :type delta_t: float
+    :param single_pulse: solution of the first pulse
+    :type single_pulse: scipy solution object
+    :param t_eval: times at which the exciton density should be evaluated
+    :type t_eval: 1d-array
+    :param a_fac: extraction factors
+    :type a_fac: 1d-array
+    :param E2: photon energy of the second pulse
+    :type E2: float
+    :return: photocurrent
+    :rtype: float
+    """
     n2p, n2p_vals = two_pulses_photoresponse(t_eval, delta_t, single_pulse, E=E2)
     integrand = a_fac[0] * (n2p_vals[0] - single_pulse.y[0]) + a_fac[1] * (n2p_vals[1] - single_pulse.y[1])
 
@@ -160,6 +181,26 @@ def photocurrent_delta_t_continous(delta_t_range, pc_resolution, single_pulse, t
 
 
 def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, t_span, t_eval, a_fac, E2):
+    """
+    Calculates the photocurrent in a given range of delta_t.
+
+    :param delta_t_range: minimal and maximal delta_t
+    :type delta_t_range: tuple
+    :param pc_resolution: number of points to evaluate
+    :type pc_resolution: int
+    :param single_pulse: solution of the first pulse
+    :type single_pulse: scipy solution object
+    :param t_span: time range in which the exciton density functions are evaluated
+    :type t_span: tuple
+    :param t_eval: time points at which the exciton density functions are evaluated
+    :type t_eval: 1d-array
+    :param a_fac: extraction factors
+    :type a_fac: 1d-array
+    :param E2: photon energy of the second pulse
+    :type E2: float
+    :return: delta_t values and corresponding PC values
+    :rtype: 1d-array, 1d-array
+    """
     tstep = (t_span[1] - t_span[0]) / len(t_eval)
     if abs(delta_t_range[0] / tstep) < 0.5:
         start = 1
@@ -185,6 +226,9 @@ first_excitation = np.array([excitation_function(t, smearing=pulse_width, E=puls
 second_excitation = np.array(
     [excitation_function(t - time_vals[delta_t_step], smearing=pulse_width, E=pulse_energies[1]) for t in time_vals])
 
+float_formatter = '{:.4f}'.format
+np.set_printoptions(formatter={'float_kind': float_formatter})
+
 fig, ax = plt.subplots()
 ax.plot(pc_sim[0], pc_sim[1], 'x-')
 ax.set_xlabel('$\\Delta t$')
@@ -197,11 +241,11 @@ textstr = f'$\\alpha$={alpha} \n' \
           f'$E_t$={energy_thresholds} \n' \
           f'$E_p$={pulse_energies}'
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-ax.text(0.8, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
+ax.text(0.65, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
 
 fig1, ax1 = plt.subplots()
-ax1.plot(double_pulse.t-delta_t, double_pulse_vals[0], '-')
-ax1.plot(double_pulse.t-delta_t, double_pulse_vals[1], '-')
+ax1.plot(double_pulse.t - delta_t, double_pulse_vals[0], '-')
+ax1.plot(double_pulse.t - delta_t, double_pulse_vals[1], '-')
 ax1.set_xlabel('$t$')
 ax1.set_ylabel('$N(t)$')
 ax1.set_title(f'resolution={diff_solver_resolution}')
@@ -213,6 +257,6 @@ textstr = f'$\\alpha$={alpha} \n' \
           f'$E_p$={pulse_energies} \n' \
           f'$a$={extractions}'
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-ax1.text(0.8, 0.5, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
+ax1.text(0.6, 0.5, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
 ax1.set_xlim(-1, 30)
 plt.show()
