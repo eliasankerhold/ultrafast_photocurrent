@@ -39,7 +39,7 @@ plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (-200e-12, 200e-12)  # delta_t range
-delta_t_resolution = int(1e2 + 1)  # resolution
+delta_t_resolution = int(4e0 + 1)  # resolution
 extractions = np.array([1., 1])  # exciton extraction factors
 
 ########################################################################################################################
@@ -140,8 +140,8 @@ def get_absorption_coefficients(energies):
             absorption[1, :] = 4 * np.pi * extinction_data_mose2[k_mose2, 1]
     else:
         print(
-            f'Error! No extinction coefficient data for wavelengths {lambda_onetwo} m corresponding to pulse energies '
-            f'{energies * e} eV available.')
+            f'ERROR: No extinction coefficient data for wavelengths {lambda_onetwo} m corresponding to pulse energies '
+            f'{energies * e} eV available !')
 
     return absorption
 
@@ -167,7 +167,7 @@ def delta_approx(x, smearing=0, p_height=pulse_height):
 
 def excitation_function(t, smearing, N_init):
     """
-    Model excitation pulse as delta function for both monolayers using heaviside function as energy response mechanism.
+    Model excitation pulse as delta function for both monolayers.
 
     :param t: time
     :type t: float
@@ -340,7 +340,6 @@ if run_main:
                                                    single_pulse=single_pulse, t_span=time_range, t_eval=time_vals,
                                                    a_fac=extractions, negswitch=False)
 
-        # pc_sim = np.zeros(2, len(pc_sim_neg[0]) + len(pc_sim_pos[0]))
         pc_sim_neg = ((pc_sim_neg[0] * -1)[::-1], pc_sim_neg[1][::-1])
         pc_sim = np.hstack((pc_sim_neg, pc_sim_pos))
 
@@ -384,8 +383,7 @@ if run_main:
             axn.plot(h[1][2], h[1][1])
             axn.set_title(str(h[2] / delta_t_step))
             axn.set_xlim(plot_t_lims)
-            axn.hlines(N0[0], h[1][2].min(), h[1][1].max())
-            axn.hlines(N0[1], h[1][2].min(), h[1][1].max())
+            axn.hlines([N0[0], N0[1]], h[1][2].min(), h[1][1].max(), color='gray')
 
     if example_output:
         fig1, ax1 = plt.subplots()
@@ -412,6 +410,7 @@ if run_main:
         ax2.set_ylabel('extinction coefficent')
         ax2.legend()
     plt.show()
+
 else:
     print(get_absorption_coefficients(pulse_energies))
     plt.show()
