@@ -59,18 +59,6 @@ double_pulse, double_pulse_vals = two_pulses_photoresponse(t_eval=time_vals, del
                                                            N0=N0_init, res=diff_solver_resolution, negswitch=False)
 
 if __name__ != '__main__':
-    # CHECKS
-    if delta_t_sweep[1] >= time_range[1] / 2:
-        print(
-            'WARNING: Simulation range should be at least two times the maximum pulse delay. This is not the case with '
-            f'dt = {delta_t_sweep[1]} and tmax = {time_range[1]} !')
-    if delta_t_resolution % 2 == 0:
-        print('WARNING: It is highly recommended to use an odd resolution for sweeping pulse delay !')
-    if (time_range[1] - time_range[0]) / diff_solver_resolution >= abs(
-            delta_t_sweep[1] - delta_t_sweep[0]) / delta_t_resolution * 1e-2:
-        print(f'WARNING: dt = {delta_t} is too small to be resolved properly at a resolution of '
-              f'{(time_range[1] - time_range[0]) / diff_solver_resolution} !')
-
     if delta_t_sweep[0] < 0:
         pbar = tqdm(total=delta_t_resolution / 2)
     else:
@@ -120,6 +108,18 @@ def pool_manager(instances, range, negflag, doubleflag=False):
 
 
 if __name__ == '__main__':
+    # CHECKS
+    if delta_t_sweep[1] >= time_range[1] / 2:
+        print(
+            'WARNING: Simulation range should be at least two times the maximum pulse delay. This is not the case with '
+            f'dt = {delta_t_sweep[1]} and tmax = {time_range[1]} !')
+    if delta_t_resolution % 2 == 0:
+        print('WARNING: It is highly recommended to use an odd resolution for sweeping pulse delay !')
+    if (time_range[1] - time_range[0]) / diff_solver_resolution >= abs(
+            delta_t_sweep[1] - delta_t_sweep[0]) / delta_t_resolution * 1e-2:
+        print(f'WARNING: dt = {delta_t} is too small to be resolved properly at a resolution of '
+              f'{(time_range[1] - time_range[0]) / diff_solver_resolution} !')
+
     if np.sign(delta_t_sweep[0]) == -1:
         delta_t_resolution = int(delta_t_resolution / 2)
         delta_t_sweep_neg = (0, delta_t_sweep[0] * -1)
