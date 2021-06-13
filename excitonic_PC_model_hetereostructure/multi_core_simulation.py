@@ -2,9 +2,6 @@ from parallelization_framework import *
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 from datetime import datetime
-import tkinter as tk
-from tkinter.ttk import Progressbar
-from time import sleep
 from tqdm import tqdm
 
 ########################################################################################################################
@@ -13,6 +10,7 @@ from tqdm import tqdm
 example_output = False
 plot_extinction = False
 number_of_tasks = 'auto'
+logscale = False
 # DEVICE PARAMETERS - first entry is MoSe2 (top), second is MoS2 (bottom)
 alpha = np.array([0e11, 0e11])  # coupling constants
 tau = np.array([25, 25]) * 1e-12  # photoresponse time
@@ -35,8 +33,8 @@ plot_n_lims = None  # (1e18, 4e18)
 plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
-delta_t_sweep = (000e-12, 200e-12)  # delta_t range
-delta_t_resolution = int(5e2 + 1)  # resolution
+delta_t_sweep = (000e-12, 50e-12)  # delta_t range
+delta_t_resolution = int(1e2 + 1)  # resolution
 extractions = np.array([1., 1])  # exciton extraction factors
 
 ########################################################################################################################
@@ -150,6 +148,9 @@ if __name__ == '__main__':
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
     ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
     ax.set_ylim(plot_pc_lims)
+    if logscale:
+        ax.set_xscale('log')
+        ax.set_yscale('log')
 
     if example_output:
         fig1, ax1 = plt.subplots()

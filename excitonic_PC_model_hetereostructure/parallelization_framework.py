@@ -61,6 +61,10 @@ def get_absorption_coefficients(energies, data_mos2, data_mose2):
     """
     Calculates absorption coefficients for both pulse energies.
 
+    :param data_mos2: extinction data for mos2
+    :type data_mos2: 1d-array
+    :param data_mose2: extinction data for mose2
+    :type data_mose2: 1d-array
     :param energies: photon energies of first and second pulse in J
     :type energies: 1d-array
     :return: absorption coefficients for both materials and both pulses (material, pulse_number)
@@ -115,6 +119,8 @@ def excitation_function(t, smearing, N_init):
     :type t: float
     :param smearing: pulsewidth of delta approximation
     :type smearing: float
+    :param N_init: inital exciton densities
+    :type N_init: 1d-array
     :return: excitation factors for both monolayers
     :rtype: 2d-array
     """
@@ -127,6 +133,12 @@ def rhs_coupled_photoresponse(t, Nvec, N_init, params, t_shift=0):
     """
     Right hand side of the non-linear coupled photoresponse model.
 
+    :param N_init: initial exciton density
+    :type N_init: 1d-array
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
+    :param t_shift:
+    :type t_shift:
     :param t: time
     :type t: float
     :param Nvec: value of exciton function density
@@ -145,6 +157,8 @@ def single_pulse_photoresponse(t_span, t_eval, N_init, params):
     """
     Solves the system for a single pulse at t=0.
 
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
     :param t_span: timespan of simulation
     :type t_span: tuple
     :param t_eval: time points at which function values are saved
@@ -163,6 +177,14 @@ def two_pulses_photoresponse(t_eval, delta_t_steps, N_first_pulse, params, N0, r
     """
     Solves the system for two pulses with a difference in time.
 
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
+    :param N0: initial exciton densities
+    :type N0: 1d-array
+    :param res: resolution of exciton density solution
+    :type res: int
+    :param negswitch: toggle negative pulse delay mode
+    :type negswitch: bool
     :param t_eval: time points at which function values are saved
     :type t_eval: 1d-array
     :param delta_t_steps: time difference in steps of the total time range array
@@ -193,6 +215,14 @@ def lock_in_photocurrent_discrete(delta_t, single_pulse, t_eval, a_fac, params, 
     """
     Evaluates the delta_t - dependent PC integral using trapezoid rule.
 
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
+    :param N0: initial exciton densities
+    :type N0: 1d-array
+    :param res: resolution of exciton density solution
+    :type res: int
+    :param negswitch: toggle negative pulse delay mode
+    :type negswitch: bool
     :param delta_t: pulse delay index
     :type delta_t: int
     :param single_pulse: solution of the first pulse
@@ -217,10 +247,18 @@ def lock_in_photocurrent_discrete(delta_t, single_pulse, t_eval, a_fac, params, 
 
 
 def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, t_span, t_eval, a_fac, params, N0, res,
-                                  progress_list, negswitch=False):
+                                  negswitch=False):
     """
     Calculates the photocurrent in a given range of delta_t.
 
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
+    :param N0: initial exciton densities
+    :type N0: 1d-array
+    :param res: resolution of exciton density solution
+    :type res: int
+    :param negswitch: toggle negative pulse delay mode
+    :type negswitch: bool
     :param delta_t_range: minimal and maximal delta_t
     :type delta_t_range: tuple
     :param pc_resolution: number of points to evaluate
@@ -251,7 +289,6 @@ def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, t_
         if dt == 0:
             print(f'\nINFO: {myname}: skipping dt = 0!')
             continue
-        progress_list[0] = i / len(trange)
         pc_vals[i] = lock_in_photocurrent_discrete(dt, single_pulse, t_eval, a_fac, params, N0, res,
                                                    negswitch=negswitch)
 
@@ -262,14 +299,18 @@ def photocurrent_delta_t_discrete_index(delta_t_index, single_pulse, t_eval, a_f
     """
     Calculates the photocurrent in a given range of delta_t.
 
-    :param delta_t_range: minimal and maximal delta_t
-    :type delta_t_range: tuple
-    :param pc_resolution: number of points to evaluate
-    :type pc_resolution: int
+    :param delta_t_index: index of pulse delay value with respect to exciton density time values
+    :type delta_t_index: int
+    :param params: parameters alpha, tau, gamma
+    :type params: tuple
+    :param N0: initial exciton densities
+    :type N0: 1d-array
+    :param res: resolution of exciton density solution
+    :type res: int
+    :param negswitch: toggle negative pulse delay mode
+    :type negswitch: bool
     :param single_pulse: solution of the first pulse
     :type single_pulse: scipy solution object
-    :param t_span: time range in which the exciton density functions are evaluated
-    :type t_span: tuple
     :param t_eval: time points at which the exciton density functions are evaluated
     :type t_eval: 1d-array
     :param a_fac: extraction factors

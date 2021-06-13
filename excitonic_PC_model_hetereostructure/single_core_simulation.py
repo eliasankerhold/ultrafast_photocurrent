@@ -39,7 +39,7 @@ plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (0e-12, 200e-12)  # delta_t range
-delta_t_resolution = int(1e1 + 1)  # resolution
+delta_t_resolution = int(1e3 + 1)  # resolution
 extractions = np.array([1., 1])  # exciton extraction factors
 
 ########################################################################################################################
