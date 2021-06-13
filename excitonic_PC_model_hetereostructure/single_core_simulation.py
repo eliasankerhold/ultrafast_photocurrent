@@ -15,7 +15,7 @@ e = 1.602176634e-19
 run_main = True
 individual_output = []  # list(np.array([0, 2, 4, 6, 8, 10]) * 1)  # list(np.arange(0, 100, 5))
 example_output = False
-plot_extinction = False
+plot_extinction = True
 # DEVICE PARAMETERS - first entry is MoSe2 (top), second is MoS2 (bottom)
 alpha = np.array([0e11, 0e11])  # coupling constants
 tau = np.array([25, 25]) * 1e-12  # photoresponse time
@@ -38,8 +38,8 @@ plot_n_lims = None  # (1e18, 4e18)
 plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
-delta_t_sweep = (-200e-12, 200e-12)  # delta_t range
-delta_t_resolution = int(4e0 + 1)  # resolution
+delta_t_sweep = (0e-12, 200e-12)  # delta_t range
+delta_t_resolution = int(1e1 + 1)  # resolution
 extractions = np.array([1., 1])  # exciton extraction factors
 
 ########################################################################################################################
