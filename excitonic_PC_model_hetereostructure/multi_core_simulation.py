@@ -1,8 +1,15 @@
-from parallelization_framework import *
 import multiprocessing as mp
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm
+import numpy as np
+from parallelization_framework import get_absorption_coefficients, single_pulse_photoresponse, \
+    two_pulses_photoresponse, photocurrent_delta_t_discrete_index, wavelength_to_energy
+
+# # NATURAL CONSTANTS
+h = 6.62607015e-34
+c = 2.99792458e8
+e = 1.602176634e-19
 
 ########################################################################################################################
 # https://www.desmos.com/calculator/mqnypi6npa
@@ -12,7 +19,7 @@ plot_extinction = False
 number_of_tasks = 'auto'
 logscale = False
 # DEVICE PARAMETERS - first entry is MoSe2 (top), second is MoS2 (bottom)
-alpha = np.array([0e11, 0e11])  # coupling constants
+alpha = np.array([1e12, 0e10])  # coupling constants
 tau = np.array([25, 25]) * 1e-12  # photoresponse time
 gamma = np.array([1, 1]) * 1e-4  # exciton-exciton annihilation rate
 
@@ -20,7 +27,7 @@ gamma = np.array([1, 1]) * 1e-4  # exciton-exciton annihilation rate
 # exciton density simulation
 time_range = (0, 101e-11)  # time range
 diff_solver_resolution = int(1e6)  # resolution
-pulse_energies = np.array([1.6, 1.6]) * e  # energy of first and second pulse
+pulse_energies = np.array([1.6, 2.2]) * e  # energy of first and second pulse
 pulse_width = 1e-20  # pulse width of delta approximation
 pulse_height = 1  # pulse height of delta approximation (OBSOLETE, set to 1 to use N0 as initial density)
 delta_t = 1e-12  # pulse delay of example output
@@ -33,8 +40,8 @@ plot_n_lims = None  # (1e18, 4e18)
 plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
-delta_t_sweep = (000e-12, 50e-12)  # delta_t range
-delta_t_resolution = int(1e2 + 1)  # resolution
+delta_t_sweep = (-150e-12, 150e-12)  # delta_t range
+delta_t_resolution = int(1e3 + 1)  # resolution
 extractions = np.array([1., 1])  # exciton extraction factors
 
 ########################################################################################################################
@@ -99,7 +106,7 @@ def pool_manager(instances, range, negflag, doubleflag=False):
     else:
         result = np.array(pool.map(pool_wrapper_pos, trange))
     if doubleflag:
-        print('\nNegative range done.')
+        print('\nINFO: Negative range done.')
     else:
         print(f'\n\nINFO: Simulation took {datetime.utcnow() - start}')
     result[:, 0] *= tstep
@@ -117,8 +124,11 @@ if __name__ == '__main__':
         print('WARNING: It is highly recommended to use an odd resolution for sweeping pulse delay !')
     if (time_range[1] - time_range[0]) / diff_solver_resolution >= abs(
             delta_t_sweep[1] - delta_t_sweep[0]) / delta_t_resolution * 1e-2:
-        print(f'WARNING: dt = {delta_t} is too small to be resolved properly at a resolution of '
-              f'{(time_range[1] - time_range[0]) / diff_solver_resolution} !')
+        print(
+            f'WARNING: dt = {(delta_t_sweep[1] - delta_t_sweep[0]) / delta_t_resolution} is too small to be resolved properly at a resolution of '
+            f'{(time_range[1] - time_range[0]) / diff_solver_resolution} !')
+
+    print(f'INFO: {datetime.now()}: Starting simulation...\n')
 
     if np.sign(delta_t_sweep[0]) == -1:
         delta_t_resolution = int(delta_t_resolution / 2)
