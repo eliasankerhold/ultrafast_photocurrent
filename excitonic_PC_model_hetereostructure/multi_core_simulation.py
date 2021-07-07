@@ -5,6 +5,10 @@ from tqdm import tqdm
 import numpy as np
 from parallelization_framework import get_absorption_coefficients, single_pulse_photoresponse, \
     two_pulses_photoresponse, photocurrent_delta_t_discrete_index, wavelength_to_energy
+import os
+
+os.chdir("C:\\Users\\wwwja\\OneDrive\\Documents\\Simulations TrPC\\excitonic_PC_model_hetereostructure")
+
 
 # # NATURAL CONSTANTS
 h = 6.62607015e-34
@@ -14,35 +18,35 @@ e = 1.602176634e-19
 ########################################################################################################################
 # https://www.desmos.com/calculator/mqnypi6npa
 # MAIN SIMULATION TOGGLE
-example_output = False
+example_output = True
 plot_extinction = False
 number_of_tasks = 'auto'
 logscale = False
 # DEVICE PARAMETERS - first entry is MoSe2 (top), second is MoS2 (bottom)
-alpha = np.array([1e12, 0e10])  # coupling constants
-tau = np.array([25, 25]) * 1e-12  # photoresponse time
-gamma = np.array([1, 1]) * 1e-4  # exciton-exciton annihilation rate
+alpha = np.array([0e11, 0e11])  # coupling constants
+tau = np.array([25, 225]) * 1e-12  # photoresponse time
+gamma = np.array([0.01, 0.11]) * 1e-4  # exciton-exciton annihilation rate
 
 # SIMULATION PARAMETERS
 # exciton density simulation
 time_range = (0, 101e-11)  # time range
 diff_solver_resolution = int(1e6)  # resolution
-pulse_energies = np.array([1.6, 2.2]) * e  # energy of first and second pulse
+pulse_energies = np.array([1.62, 1.62 ]) * e  # energy of first and second pulse
 pulse_width = 1e-20  # pulse width of delta approximation
 pulse_height = 1  # pulse height of delta approximation (OBSOLETE, set to 1 to use N0 as initial density)
-delta_t = 1e-12  # pulse delay of example output
+delta_t = 100e-12  # pulse delay of example output
 laser_r = np.array([0.4, 0.4]) * 1e-6  # illuminated radii of first and second pulse
 laser_f = np.array([80e6, 80e6])  # frequencies of first and second laser pulse
-laser_p = np.array([1., 1.])  # time-averaged laser powers of first and second pulse
+laser_p = np.array([0.65, 1.])  # time-averaged laser powers of first and second pulse
 # if needed, set plot limits. set to None for autoscale
 plot_t_lims = None  # (0e-12, 5e-12)
 plot_n_lims = None  # (1e18, 4e18)
 plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
-delta_t_sweep = (-150e-12, 150e-12)  # delta_t range
-delta_t_resolution = int(1e3 + 1)  # resolution
-extractions = np.array([1., 1])  # exciton extraction factors
+delta_t_sweep = (-50e-12, 50e-12)  # delta_t range
+delta_t_resolution = int(1e2 + 1)  # resolution
+extractions = np.array([0., 1])  # exciton extraction factors
 
 ########################################################################################################################
 time_vals = np.linspace(time_range[0], time_range[1], diff_solver_resolution)
@@ -59,10 +63,19 @@ powers = np.array([laser_p, laser_p])
 N0_init = get_absorption_coefficients(pulse_energies / e, extinction_data_mos2, extinction_data_mose2) / (
         laser_f * np.pi * np.square(laser_r) * pulse_energies) * powers  # initial exciton densities
 
+single_pulse_neg = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 1],
+                                          params=(alpha, tau, gamma))
+single_pulse_pos = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
+                                          params=(alpha, tau, gamma))
+single_pulse_chopper = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
+                                          params=(alpha, tau, gamma))
 single_pulse = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
                                           params=(alpha, tau, gamma))
-double_pulse, double_pulse_vals = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
-                                                           N_first_pulse=single_pulse, params=(alpha, tau, gamma),
+double_pulse, double_pulse_vals_neg = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
+                                                           N_first_pulse=single_pulse_neg, params=(alpha, tau, gamma),
+                                                           N0=N0_init, res=diff_solver_resolution, negswitch=True)
+double_pulse, double_pulse_vals_pos = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
+                                                           N_first_pulse=single_pulse_pos, params=(alpha, tau, gamma),
                                                            N0=N0_init, res=diff_solver_resolution, negswitch=False)
 
 if __name__ != '__main__':
@@ -74,14 +87,14 @@ if __name__ != '__main__':
 
 def pool_wrapper_pos(dt_index):
     pbar.update(number_of_tasks)
-    return photocurrent_delta_t_discrete_index(dt_index, single_pulse, t_eval=time_vals, a_fac=extractions,
+    return photocurrent_delta_t_discrete_index(dt_index, single_pulse_pos, single_pulse_chopper, t_eval=time_vals, a_fac=extractions,
                                                params=(alpha, tau, gamma), N0=N0_init, res=diff_solver_resolution,
                                                negswitch=False)
 
 
 def pool_wrapper_neg(dt_index):
     pbar.update(number_of_tasks)
-    return photocurrent_delta_t_discrete_index(dt_index, single_pulse, t_eval=time_vals, a_fac=extractions,
+    return photocurrent_delta_t_discrete_index(dt_index, single_pulse_neg, single_pulse_chopper, t_eval=time_vals, a_fac=extractions,
                                                params=(alpha, tau, gamma), N0=N0_init, res=diff_solver_resolution,
                                                negswitch=True)
 
@@ -154,17 +167,22 @@ if __name__ == '__main__':
               f'$\\tau$={tau} \n' \
               f'$\\gamma$={gamma} \n' \
               f'$N_0$={N0_init} \n' \
-              f'$E_p$={pulse_energies / e}'
+              f'$E_p$={pulse_energies / e}\n' \
+              f'$a$={extractions}'
     props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
     ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
     ax.set_ylim(plot_pc_lims)
+
+    np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header = textstr)
+    
     if logscale:
-        ax.set_xscale('log')
+        #ax.set_xscale('log')
         ax.set_yscale('log')
 
     if example_output:
         fig1, ax1 = plt.subplots()
-        ax1.plot(double_pulse_vals[2], double_pulse_vals[1], '-')
+        ax1.plot(double_pulse_vals_pos[2], double_pulse_vals_pos[1], '-')
+        ax1.plot(double_pulse_vals_neg[2], double_pulse_vals_neg[1], '-')
         ax1.set_xlabel('$t$')
         ax1.set_ylabel('$N(t)$')
         ax1.set_title(f'resolution={diff_solver_resolution}')

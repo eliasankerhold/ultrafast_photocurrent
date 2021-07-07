@@ -148,8 +148,8 @@ def rhs_coupled_photoresponse(t, Nvec, N_init, params, t_shift=0):
     """
     alpha, tau, gamma = params
     Gt = excitation_function(t + t_shift, smearing=1, N_init=N_init)
-    dN1 = Gt[0] - Nvec[0] / tau[0] - gamma[0] * Nvec[0] ** 2 + alpha[0] * Nvec[1]
-    dN2 = Gt[1] - Nvec[1] / tau[1] - gamma[1] * Nvec[1] ** 2 + alpha[1] * Nvec[0]
+    dN1 = Gt[0] - Nvec[0] / tau[0] - gamma[0] * Nvec[0] ** 2 + alpha[0] * Nvec[1] - alpha[1] * Nvec[0]
+    dN2 = Gt[1] - Nvec[1] / tau[1] - gamma[1] * Nvec[1] ** 2 + alpha[1] * Nvec[0] - alpha[0] * Nvec[1]
     return np.array([dN1, dN2])
 
 
@@ -169,7 +169,7 @@ def single_pulse_photoresponse(t_span, t_eval, N_init, params):
     :rtype: scipy solution object
     """
     solution = solve_ivp(rhs_coupled_photoresponse, t_span=t_span, t_eval=t_eval, y0=N_init, method='RK45',
-                         vectorized=True, dense_output=True, args=(N_init, params))
+                         vectorized=True, dense_output=True, args=(N_init, params, ))
     return solution
 
 
@@ -211,7 +211,7 @@ def two_pulses_photoresponse(t_eval, delta_t_steps, N_first_pulse, params, N0, r
     return nsol, narray
 
 
-def lock_in_photocurrent_discrete(delta_t, single_pulse, t_eval, a_fac, params, N0, res, negswitch=False):
+def lock_in_photocurrent_discrete(delta_t, single_pulse, single_pulse_chopper, t_eval, a_fac, params, N0, res, negswitch=False):
     """
     Evaluates the delta_t - dependent PC integral using trapezoid rule.
 
@@ -237,16 +237,14 @@ def lock_in_photocurrent_discrete(delta_t, single_pulse, t_eval, a_fac, params, 
     :rtype: float
     """
     n2p, n2p_vals = two_pulses_photoresponse(t_eval, delta_t, single_pulse, params, N0, res, negswitch=negswitch)
-    if negswitch:
-        delta_t *= -1
-    integrand = a_fac[0] * (n2p_vals[0] - single_pulse.y[0]) + a_fac[1] * (n2p_vals[1] - single_pulse.y[1])
-
-    pc = trapz(integrand)
+    integrand1 = a_fac[0] * n2p_vals[0]  + a_fac[1] * n2p_vals[1] 
+    integrand2 =   -  a_fac[0] * single_pulse_chopper.y[0] - a_fac[1] * single_pulse_chopper.y[1]
+    pc = trapz(integrand1) - trapz(integrand2)
 
     return pc
 
 
-def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, t_span, t_eval, a_fac, params, N0, res,
+def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, single_pulse_chopper, t_span, t_eval, a_fac, params, N0, res,
                                   negswitch=False):
     """
     Calculates the photocurrent in a given range of delta_t.
@@ -289,13 +287,13 @@ def photocurrent_delta_t_discrete(delta_t_range, pc_resolution, single_pulse, t_
         if dt == 0:
             print(f'\nINFO: {myname}: skipping dt = 0!')
             continue
-        pc_vals[i] = lock_in_photocurrent_discrete(dt, single_pulse, t_eval, a_fac, params, N0, res,
+        pc_vals[i] = lock_in_photocurrent_discrete(dt, single_pulse, single_pulse_chopper, t_eval, a_fac, params, N0, res,
                                                    negswitch=negswitch)
 
     return trange * tstep, pc_vals
 
 
-def photocurrent_delta_t_discrete_index(delta_t_index, single_pulse, t_eval, a_fac, params, N0, res, negswitch=False):
+def photocurrent_delta_t_discrete_index(delta_t_index, single_pulse, single_pulse_chopper, t_eval, a_fac, params, N0, res, negswitch=False):
     """
     Calculates the photocurrent in a given range of delta_t.
 
@@ -323,7 +321,7 @@ def photocurrent_delta_t_discrete_index(delta_t_index, single_pulse, t_eval, a_f
     if delta_t_index == 0:
         return None, None
 
-    pc_val = lock_in_photocurrent_discrete(delta_t_index, single_pulse, t_eval, a_fac, params, N0, res,
+    pc_val = lock_in_photocurrent_discrete(delta_t_index, single_pulse, single_pulse_chopper, t_eval, a_fac, params, N0, res,
                                            negswitch=negswitch)
 
     return delta_t_index, pc_val
