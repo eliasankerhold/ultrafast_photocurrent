@@ -5,7 +5,40 @@ from tqdm import tqdm
 import numpy as np
 from parallelization_framework import get_absorption_coefficients, single_pulse_photoresponse, \
     two_pulses_photoresponse, photocurrent_delta_t_discrete_index, wavelength_to_energy
+import sys
+import pandas as pd
+from datetime import datetime
+import os
 
+
+def read_args():
+    """
+    Reads arguments passed to the script in this order:
+    NUMBER OF TASKS, ALPHA_0, ALPHA_1, GAMMA_0, GAMMA_1, TAU_0, TAU_1, ENERGY_0, ENERGY_1, POWER_0, POWER_1,
+    TIME_RANGE, TIME_RESOLUTION, DELTA_T_SWEEP, DELTA_T_RESOLUTION, SAVE_INDEX
+    """
+    if len(sys.argv) > 1:
+        tasks = int(sys.argv[1])
+        alphas = np.array([sys.argv[2], sys.argv[3]])
+        gammas = np.array([sys.argv[4], sys.argv[5]])
+        taus = np.array([sys.argv[6], sys.argv[7]])
+        energies = np.array([sys.argv[8], sys.argv[9]])
+        powers = np.array([sys.argv[10], sys.argv[11]])
+        time_range = (sys.argv[12], sys.argv[13])
+        time_resolution = int(sys.argv[14])
+        delta_t_range = (sys.argv[15], sys.argv[16])
+        delta_t_res = sys.argv[17]
+        save_index = sys.argv[18]
+
+        return [tasks, alphas, gammas, taus, energies, powers, time_range, time_resolution, delta_t_range, delta_t_res,
+                save_index]
+
+
+def timestamp_maker():
+    return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+read_args()
 # # NATURAL CONSTANTS
 h = 6.62607015e-34
 c = 2.99792458e8
@@ -14,9 +47,15 @@ e = 1.602176634e-19
 ########################################################################################################################
 # https://www.desmos.com/calculator/mqnypi6npa
 # MAIN SIMULATION TOGGLE
-example_output = True
+example_output = False
 plot_extinction = False
-number_of_tasks = 'auto'
+pc_plot = False
+save_data = True
+savedir = f'.\\out'
+save_index = 1
+use_date_as_folder_name = False
+folder_name = 'default'
+number_of_tasks = 12
 logscale = False
 # DEVICE PARAMETERS - first entry is MoSe2 (top), second is MoS2 (bottom)
 alpha = np.array([0e11, 0e11])  # coupling constants
@@ -41,10 +80,38 @@ plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (-10e-11, 5e-12)  # delta_t range
-delta_t_resolution = int(5e1 + 1)  # resolution
+delta_t_resolution = int(1e1 + 1)  # resolution
 extractions = np.array([0., 1])  # exciton extraction factors
 
+
 ########################################################################################################################
+def param_updater():
+    global number_of_tasks, alpha, gamma, tau, pulse_energies, laser_p, time_range, diff_solver_resolution, \
+        delta_t_sweep, delta_t_resolution, save_index, folder_name
+    """
+    Reads arguments passed to the script in this order:
+    NUMBER OF TASKS, ALPHA_0, ALPHA_1, GAMMA_0, GAMMA_1, TAU_0, TAU_1, ENERGY_0, ENERGY_1, POWER_0, POWER_1,
+    TIME_RANGE, TIME_RESOLUTION, DELTA_T_SWEEP, DELTA_T_RESOLUTION, SAVE_INDEX, SWEEP_MODE
+    And updates the parameters.
+    """
+
+    if len(sys.argv) > 1:
+        number_of_tasks = int(sys.argv[1])
+        alpha = np.array([sys.argv[2], sys.argv[3]], dtype=float)
+        gamma = np.array([sys.argv[4], sys.argv[5]], dtype=float)
+        tau = np.array([sys.argv[6], sys.argv[7]], dtype=float)
+        pulse_energies = np.array([sys.argv[8], sys.argv[9]], dtype=float)
+        laser_p = np.array([sys.argv[10], sys.argv[11]], dtype=float)
+        time_range = (float(sys.argv[12]), float(sys.argv[13]))
+        diff_solver_resolution = int(sys.argv[14])
+        delta_t_sweep = (float(sys.argv[15]), float(sys.argv[16]))
+        delta_t_resolution = int(sys.argv[17])
+        save_index = int(sys.argv[18])
+        folder_name = bool(sys.argv[19])
+
+
+param_updater()
+
 time_vals = np.linspace(time_range[0], time_range[1], diff_solver_resolution)
 delta_t_step = int(delta_t / ((time_range[1] - time_range[0]) / diff_solver_resolution))
 if np.sign(delta_t_sweep[0]) != np.sign(delta_t_sweep[1]):
@@ -69,13 +136,13 @@ single_pulse_pos = single_pulse_photoresponse(t_span=time_range, t_eval=time_val
 single_pulse_chopper = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
                                                   params=(alpha, tau, gamma))
 _, double_pulse_vals_neg = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
-                                                               N_first_pulse=single_pulse_neg,
-                                                               params=(alpha, tau, gamma),
-                                                               N0=N0_init, res=diff_solver_resolution, negswitch=True)
+                                                    N_first_pulse=single_pulse_neg,
+                                                    params=(alpha, tau, gamma),
+                                                    N0=N0_init, res=diff_solver_resolution, negswitch=True)
 _, double_pulse_vals_pos = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
-                                                               N_first_pulse=single_pulse_pos,
-                                                               params=(alpha, tau, gamma),
-                                                               N0=N0_init, res=diff_solver_resolution, negswitch=False)
+                                                    N_first_pulse=single_pulse_pos,
+                                                    params=(alpha, tau, gamma),
+                                                    N0=N0_init, res=diff_solver_resolution, negswitch=False)
 
 if __name__ != '__main__':
     if np.sign(delta_t_sweep[0]) != np.sign(delta_t_sweep[1]):
@@ -138,6 +205,31 @@ def create_trange_array(resolution, sweeprange):
     return trange, tstep
 
 
+def data_saver(filepath, result_data, paramsave=True, print_out=False, folder_name=folder_name):
+    rframe = pd.DataFrame({'delta_t': result_data[:, 0], 'pc': result_data[:, 1]})
+    pframe = pd.DataFrame({'alpha': alpha, 'gamma': gamma, 'tau': tau, 'energies': pulse_energies, 'powers': laser_p,
+                           'extractions': extractions, 'n_time_range': time_range,
+                           'n_resolution': diff_solver_resolution, 'delta_t_range': delta_t_sweep,
+                           'delta_t_resolution': delta_t_resolution})
+
+    if use_date_as_folder_name:
+        now = timestamp_maker()
+        filepath = filepath + f'\\{now}\\'
+    else:
+        filepath = filepath + f'\\{folder_name}\\'
+
+    if not os.path.isdir(filepath):
+        os.makedirs(filepath)
+
+    filepath_d = f'{filepath}data_' + '{:04d}'.format(save_index) + '.txt'
+    filepath_p = f'{filepath}params_' + '{:04d}'.format(save_index) + '.txt'
+    rframe.to_csv(filepath_d, sep=';', index=False)
+    if paramsave:
+        pframe.to_csv(filepath_p, sep=';', index=False)
+    if print_out:
+        print(f'Saved to {filepath}')
+
+
 if __name__ == '__main__':
     # CHECKS
     if delta_t_sweep[1] >= time_range[1] / 2:
@@ -158,25 +250,29 @@ if __name__ == '__main__':
 
     pc = pool_manager(number_of_tasks, trange=delta_range, tstep=tstep)
 
+    if save_data:
+        data_saver(savedir, pc)
+
     float_formatter = '{:.4e}'.format
     np.set_printoptions(formatter={'float_kind': float_formatter})
 
-    fig, ax = plt.subplots()
-    ax.plot(pc[:, 0], pc[:, 1], 'x-')
-    ax.set_xlabel('$\\Delta t$')
-    ax.set_ylabel('$PC(\\Delta t)$')
-    ax.set_title(f'nt={time_range}, nres={diff_solver_resolution}, dtres={delta_t_resolution}')
-    textstr = f'$\\alpha$={alpha} \n' \
-              f'$\\tau$={tau} \n' \
-              f'$\\gamma$={gamma} \n' \
-              f'$N_0$={N0_init} \n' \
-              f'$E_p$={pulse_energies / e}\n' \
-              f'$a$={extractions}'
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
-    ax.set_ylim(plot_pc_lims)
+    if pc_plot:
+        fig, ax = plt.subplots()
+        ax.plot(pc[:, 0], pc[:, 1], 'x-')
+        ax.set_xlabel('$\\Delta t$')
+        ax.set_ylabel('$PC(\\Delta t)$')
+        ax.set_title(f'nt={time_range}, nres={diff_solver_resolution}, dtres={delta_t_resolution}')
+        textstr = f'$\\alpha$={alpha} \n' \
+                  f'$\\tau$={tau} \n' \
+                  f'$\\gamma$={gamma} \n' \
+                  f'$N_0$={N0_init} \n' \
+                  f'$E_p$={pulse_energies / e}\n' \
+                  f'$a$={extractions}'
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
+        ax.set_ylim(plot_pc_lims)
 
-    np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header=textstr)
+        np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header=textstr)
 
     if logscale:
         # ax.set_xscale('log')
