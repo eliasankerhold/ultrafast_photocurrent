@@ -41,7 +41,7 @@ plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (-10e-11, 5e-12)  # delta_t range
-delta_t_resolution = int(1e2+1)  # resolution
+delta_t_resolution = int(5e1 + 1)  # resolution
 extractions = np.array([0., 1])  # exciton extraction factors
 
 ########################################################################################################################
@@ -68,13 +68,11 @@ single_pulse_pos = single_pulse_photoresponse(t_span=time_range, t_eval=time_val
                                               params=(alpha, tau, gamma))
 single_pulse_chopper = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
                                                   params=(alpha, tau, gamma))
-single_pulse = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
-                                          params=(alpha, tau, gamma))
-double_pulse, double_pulse_vals_neg = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
+_, double_pulse_vals_neg = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
                                                                N_first_pulse=single_pulse_neg,
                                                                params=(alpha, tau, gamma),
                                                                N0=N0_init, res=diff_solver_resolution, negswitch=True)
-double_pulse, double_pulse_vals_pos = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
+_, double_pulse_vals_pos = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
                                                                N_first_pulse=single_pulse_pos,
                                                                params=(alpha, tau, gamma),
                                                                N0=N0_init, res=diff_solver_resolution, negswitch=False)
