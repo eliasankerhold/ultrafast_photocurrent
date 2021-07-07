@@ -5,10 +5,6 @@ from tqdm import tqdm
 import numpy as np
 from parallelization_framework import get_absorption_coefficients, single_pulse_photoresponse, \
     two_pulses_photoresponse, photocurrent_delta_t_discrete_index, wavelength_to_energy
-import os
-
-os.chdir("C:\\Users\\wwwja\\OneDrive\\Documents\\Simulations TrPC\\excitonic_PC_model_hetereostructure")
-
 
 # # NATURAL CONSTANTS
 h = 6.62607015e-34
@@ -31,26 +27,29 @@ gamma = np.array([0.01, 0.11]) * 1e-4  # exciton-exciton annihilation rate
 # exciton density simulation
 time_range = (0, 101e-11)  # time range
 diff_solver_resolution = int(1e6)  # resolution
-pulse_energies = np.array([1.62, 1.62 ]) * e  # energy of first and second pulse
+pulse_energies = np.array([1.62, 1.62]) * e  # energy of first and second pulse
 pulse_width = 1e-20  # pulse width of delta approximation
 pulse_height = 1  # pulse height of delta approximation (OBSOLETE, set to 1 to use N0 as initial density)
 delta_t = 100e-12  # pulse delay of example output
 laser_r = np.array([0.4, 0.4]) * 1e-6  # illuminated radii of first and second pulse
 laser_f = np.array([80e6, 80e6])  # frequencies of first and second laser pulse
-laser_p = np.array([0.65, 1.])  # time-averaged laser powers of first and second pulse
+laser_p = np.array([1., 1.])  # time-averaged laser powers of first and second pulse
 # if needed, set plot limits. set to None for autoscale
 plot_t_lims = None  # (0e-12, 5e-12)
 plot_n_lims = None  # (1e18, 4e18)
 plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
-delta_t_sweep = (-50e-12, 50e-12)  # delta_t range
-delta_t_resolution = int(1e2 + 1)  # resolution
+delta_t_sweep = (-10e-11, 5e-12)  # delta_t range
+delta_t_resolution = int(1e2+1)  # resolution
 extractions = np.array([0., 1])  # exciton extraction factors
 
 ########################################################################################################################
 time_vals = np.linspace(time_range[0], time_range[1], diff_solver_resolution)
 delta_t_step = int(delta_t / ((time_range[1] - time_range[0]) / diff_solver_resolution))
+if np.sign(delta_t_sweep[0]) != np.sign(delta_t_sweep[1]):
+    delta_t_pos_frac = max([delta_t_sweep[0], delta_t_sweep[1]]) / abs(delta_t_sweep[1] - delta_t_sweep[0])
+
 if number_of_tasks == 'auto':
     number_of_tasks = mp.cpu_count()
 
@@ -64,67 +63,81 @@ N0_init = get_absorption_coefficients(pulse_energies / e, extinction_data_mos2, 
         laser_f * np.pi * np.square(laser_r) * pulse_energies) * powers  # initial exciton densities
 
 single_pulse_neg = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 1],
-                                          params=(alpha, tau, gamma))
+                                              params=(alpha, tau, gamma))
 single_pulse_pos = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
-                                          params=(alpha, tau, gamma))
+                                              params=(alpha, tau, gamma))
 single_pulse_chopper = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
-                                          params=(alpha, tau, gamma))
+                                                  params=(alpha, tau, gamma))
 single_pulse = single_pulse_photoresponse(t_span=time_range, t_eval=time_vals, N_init=N0_init[:, 0],
                                           params=(alpha, tau, gamma))
 double_pulse, double_pulse_vals_neg = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
-                                                           N_first_pulse=single_pulse_neg, params=(alpha, tau, gamma),
-                                                           N0=N0_init, res=diff_solver_resolution, negswitch=True)
+                                                               N_first_pulse=single_pulse_neg,
+                                                               params=(alpha, tau, gamma),
+                                                               N0=N0_init, res=diff_solver_resolution, negswitch=True)
 double_pulse, double_pulse_vals_pos = two_pulses_photoresponse(t_eval=time_vals, delta_t_steps=delta_t_step,
-                                                           N_first_pulse=single_pulse_pos, params=(alpha, tau, gamma),
-                                                           N0=N0_init, res=diff_solver_resolution, negswitch=False)
+                                                               N_first_pulse=single_pulse_pos,
+                                                               params=(alpha, tau, gamma),
+                                                               N0=N0_init, res=diff_solver_resolution, negswitch=False)
 
 if __name__ != '__main__':
-    if delta_t_sweep[0] < 0:
-        pbar = tqdm(total=delta_t_resolution / 2)
+    if np.sign(delta_t_sweep[0]) != np.sign(delta_t_sweep[1]):
+        pbar = tqdm(total=delta_t_resolution)
     else:
         pbar = tqdm(total=delta_t_resolution)
 
 
-def pool_wrapper_pos(dt_index):
+def pool_wrapper(dt_index):
     pbar.update(number_of_tasks)
-    return photocurrent_delta_t_discrete_index(dt_index, single_pulse_pos, single_pulse_chopper, t_eval=time_vals, a_fac=extractions,
+    return photocurrent_delta_t_discrete_index(dt_index[0], single_pulse_neg, single_pulse_chopper, t_eval=time_vals,
+                                               a_fac=extractions,
                                                params=(alpha, tau, gamma), N0=N0_init, res=diff_solver_resolution,
-                                               negswitch=False)
+                                               negswitch=bool(dt_index[1]))
 
 
-def pool_wrapper_neg(dt_index):
-    pbar.update(number_of_tasks)
-    return photocurrent_delta_t_discrete_index(dt_index, single_pulse_neg, single_pulse_chopper, t_eval=time_vals, a_fac=extractions,
-                                               params=(alpha, tau, gamma), N0=N0_init, res=diff_solver_resolution,
-                                               negswitch=True)
-
-
-def pool_manager(instances, range, negflag, doubleflag=False):
-    tstep = abs(time_range[1] - time_range[0]) / len(time_vals)
-    if abs(range[0] / tstep) < 0.5:
-        # print('\nINFO: pool manager: Set start to 1!')
-        start = 1
-    else:
-        start = int(range[0] / tstep)
-    if negflag:
-        trange = np.linspace(start, int(range[1] / tstep), int(delta_t_resolution), dtype=int)
-    else:
-        trange = np.linspace(start, int(range[1] / tstep), delta_t_resolution, dtype=int)
+def pool_manager(instances, trange, tstep):
     pool = mp.Pool(instances)
     start = datetime.utcnow()
-    if negflag:
-        result = np.array(pool.map(pool_wrapper_neg, trange))
-        result[:, 0] *= -1
-        result = result[::-1]
-    else:
-        result = np.array(pool.map(pool_wrapper_pos, trange))
-    if doubleflag:
-        print('\nINFO: Negative range done.')
-    else:
-        print(f'\n\nINFO: Simulation took {datetime.utcnow() - start}')
+
+    raw_result = np.array(pool.map(pool_wrapper, trange))
+
+    result_pos = raw_result[trange[:, 1] == 0]
+    result_neg = raw_result[trange[:, 1] == 1]
+    result_neg[:, 0] *= -1
+    result_neg = result_neg[::-1]
+    result = np.vstack((result_neg, result_pos))
+
+    print(f'\n\nINFO: Simulation took {datetime.utcnow() - start}')
     result[:, 0] *= tstep
 
     return result
+
+
+def create_trange_array(resolution, sweeprange):
+    tstep = abs(time_range[1] - time_range[0]) / len(time_vals)
+    trange = np.ones((resolution, 2), dtype=int)
+
+    if np.sign(sweeprange[0]) != np.sign(sweeprange[1]):
+        delta_t_resolution_pos = int(delta_t_resolution * delta_t_pos_frac)
+        delta_t_resolution_neg = delta_t_resolution - delta_t_resolution_pos
+        trange[:delta_t_resolution_neg, 0] = np.linspace(1, int(abs(sweeprange[0]) / tstep), delta_t_resolution_neg)
+        trange[delta_t_resolution_neg:, 0] = np.linspace(1, int(abs(sweeprange[1]) / tstep), delta_t_resolution_pos)
+        trange[delta_t_resolution_neg:, 1] *= 0
+        return trange, tstep
+
+    if abs(sweeprange[0] / tstep) < 0.5:
+        start = 1
+    else:
+        start = int(abs(sweeprange[0]) / tstep)
+        print(start)
+
+    if np.sign(sweeprange[0]) == -1:
+        trange[:, 0] = np.linspace(start, int(abs(sweeprange[1]) / tstep), resolution)
+
+    else:
+        trange[:, 0] = np.linspace(start, int(sweeprange[1] / tstep), resolution)
+        trange[:, 1] *= 0
+
+    return trange, tstep
 
 
 if __name__ == '__main__':
@@ -143,17 +156,9 @@ if __name__ == '__main__':
 
     print(f'INFO: {datetime.now()}: Starting simulation...\n')
 
-    if np.sign(delta_t_sweep[0]) == -1:
-        delta_t_resolution = int(delta_t_resolution / 2)
-        delta_t_sweep_neg = (0, delta_t_sweep[0] * -1)
-        delta_t_sweep_pos = (0, delta_t_sweep[1])
+    delta_range, tstep = create_trange_array(delta_t_resolution, delta_t_sweep)
 
-        pc_neg = pool_manager(number_of_tasks, delta_t_sweep_neg, negflag=True, doubleflag=True)
-        pc_pos = pool_manager(number_of_tasks, delta_t_sweep_pos, negflag=False, doubleflag=False)
-        pc = np.vstack((pc_neg, pc_pos))
-
-    else:
-        pc = pool_manager(number_of_tasks, delta_t_sweep, negflag=False)
+    pc = pool_manager(number_of_tasks, trange=delta_range, tstep=tstep)
 
     float_formatter = '{:.4e}'.format
     np.set_printoptions(formatter={'float_kind': float_formatter})
@@ -173,10 +178,10 @@ if __name__ == '__main__':
     ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
     ax.set_ylim(plot_pc_lims)
 
-    np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header = textstr)
-    
+    np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header=textstr)
+
     if logscale:
-        #ax.set_xscale('log')
+        # ax.set_xscale('log')
         ax.set_yscale('log')
 
     if example_output:
