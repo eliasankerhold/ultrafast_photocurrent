@@ -107,7 +107,8 @@ def param_updater():
         delta_t_sweep = (float(sys.argv[15]), float(sys.argv[16]))
         delta_t_resolution = int(sys.argv[17])
         save_index = int(sys.argv[18])
-        folder_name = bool(sys.argv[19])
+        folder_name = str(sys.argv[19])
+        # os.system("cmd /k echo I am working on it!")
 
 
 param_updater()
@@ -160,6 +161,18 @@ def pool_wrapper(dt_index):
 
 
 def pool_manager(instances, trange, tstep):
+    """
+    Creates multiple processes through pool object and manages i/o streams.
+
+    :param instances: number of parallel processes
+    :type instances: int
+    :param trange: time indices to be evaluated and positive (0) or negative (1) range
+    :type trange: 2d-array
+    :param tstep: real time step of trange
+    :type tstep: float
+    :return: time-dependent photocurrent
+    :rtype: nd-array
+    """
     pool = mp.Pool(instances)
     start = datetime.utcnow()
 
@@ -178,6 +191,17 @@ def pool_manager(instances, trange, tstep):
 
 
 def create_trange_array(resolution, sweeprange):
+    """
+    Creates an evenly spaced two dimensional time array carrying the index of time steps (dim 1) and whether the
+    time is negative (1) or positive (0) in second dimension.
+
+    :param resolution: number of time steps
+    :type resolution: int
+    :param sweeprange: minimal and maximal time values
+    :type sweeprange: tuple
+    :return: 2d-time array with indices and step size in real time
+    :rtype: nd-array, float
+    """
     tstep = abs(time_range[1] - time_range[0]) / len(time_vals)
     trange = np.ones((resolution, 2), dtype=int)
 
@@ -206,6 +230,21 @@ def create_trange_array(resolution, sweeprange):
 
 
 def data_saver(filepath, result_data, paramsave=True, print_out=False, folder_name=folder_name):
+    """
+    Saves photocurrent and optianlly parameters into file. Creates new folder from timestamp by default.
+
+    :param filepath: path of main output directory
+    :type filepath: str
+    :param result_data: pc data
+    :type result_data: 2d-array
+    :param paramsave: toggle parameter saving
+    :type paramsave: bool
+    :param print_out: toggle confirmation message
+    :type print_out: bool
+    :param folder_name: if provided, omits automatic timestamp folder and saves to folder_name
+    :type folder_name: str
+    """
+
     rframe = pd.DataFrame({'delta_t': result_data[:, 0], 'pc': result_data[:, 1]})
     pframe = pd.DataFrame({'alpha': alpha, 'gamma': gamma, 'tau': tau, 'energies': pulse_energies, 'powers': laser_p,
                            'extractions': extractions, 'n_time_range': time_range,
