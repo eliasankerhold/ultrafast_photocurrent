@@ -1,6 +1,5 @@
 import multiprocessing as mp
 import matplotlib.pyplot as plt
-from datetime import datetime
 from tqdm import tqdm
 import numpy as np
 from parallelization_framework import get_absorption_coefficients, single_pulse_photoresponse, \
@@ -11,34 +10,10 @@ from datetime import datetime
 import os
 
 
-def read_args():
-    """
-    Reads arguments passed to the script in this order:
-    NUMBER OF TASKS, ALPHA_0, ALPHA_1, GAMMA_0, GAMMA_1, TAU_0, TAU_1, ENERGY_0, ENERGY_1, POWER_0, POWER_1,
-    TIME_RANGE, TIME_RESOLUTION, DELTA_T_SWEEP, DELTA_T_RESOLUTION, SAVE_INDEX
-    """
-    if len(sys.argv) > 1:
-        tasks = int(sys.argv[1])
-        alphas = np.array([sys.argv[2], sys.argv[3]])
-        gammas = np.array([sys.argv[4], sys.argv[5]])
-        taus = np.array([sys.argv[6], sys.argv[7]])
-        energies = np.array([sys.argv[8], sys.argv[9]])
-        powers = np.array([sys.argv[10], sys.argv[11]])
-        time_range = (sys.argv[12], sys.argv[13])
-        time_resolution = int(sys.argv[14])
-        delta_t_range = (sys.argv[15], sys.argv[16])
-        delta_t_res = sys.argv[17]
-        save_index = sys.argv[18]
-
-        return [tasks, alphas, gammas, taus, energies, powers, time_range, time_resolution, delta_t_range, delta_t_res,
-                save_index]
-
-
 def timestamp_maker():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-read_args()
 # # NATURAL CONSTANTS
 h = 6.62607015e-34
 c = 2.99792458e8
@@ -80,7 +55,7 @@ plot_pc_lims = None  # (-0e21, 1.9e21)
 
 # time-resolved photocurrent simulation
 delta_t_sweep = (-10e-11, 5e-12)  # delta_t range
-delta_t_resolution = int(1e1 + 1)  # resolution
+delta_t_resolution = int(1e2 + 1)  # resolution
 extractions = np.array([0., 1])  # exciton extraction factors
 
 
@@ -96,22 +71,26 @@ def param_updater():
     """
 
     if len(sys.argv) > 1:
-        number_of_tasks = int(sys.argv[1])
-        alpha = np.array([sys.argv[2], sys.argv[3]], dtype=float)
-        gamma = np.array([sys.argv[4], sys.argv[5]], dtype=float)
-        tau = np.array([sys.argv[6], sys.argv[7]], dtype=float)
-        pulse_energies = np.array([sys.argv[8], sys.argv[9]], dtype=float)
-        laser_p = np.array([sys.argv[10], sys.argv[11]], dtype=float)
-        time_range = (float(sys.argv[12]), float(sys.argv[13]))
-        diff_solver_resolution = int(sys.argv[14])
-        delta_t_sweep = (float(sys.argv[15]), float(sys.argv[16]))
-        delta_t_resolution = int(sys.argv[17])
-        save_index = int(sys.argv[18])
-        folder_name = str(sys.argv[19])
+        argstring = [0]
+        argstring = argstring + sys.argv[1].split()
+        number_of_tasks = int(argstring[1])
+        alpha = np.array([argstring[2], argstring[3]], dtype=float)
+        gamma = np.array([argstring[4], argstring[5]], dtype=float)
+        tau = np.array([argstring[6], argstring[7]], dtype=float)
+        pulse_energies = np.array([argstring[8], argstring[9]], dtype=float)
+        laser_p = np.array([argstring[10], argstring[11]], dtype=float)
+        time_range = (float(argstring[12]), float(argstring[13]))
+        diff_solver_resolution = int(argstring[14])
+        delta_t_sweep = (float(argstring[15]), float(argstring[16]))
+        delta_t_resolution = int(argstring[17])
+        save_index = int(argstring[18])
+        folder_name = str(argstring[19])
         # os.system("cmd /k echo I am working on it!")
 
 
 param_updater()
+
+# print('HELLO!')
 
 time_vals = np.linspace(time_range[0], time_range[1], diff_solver_resolution)
 delta_t_step = int(delta_t / ((time_range[1] - time_range[0]) / diff_solver_resolution))
@@ -311,7 +290,7 @@ if __name__ == '__main__':
         ax.text(0.6, 0.05, textstr, transform=ax.transAxes, fontsize=10, verticalalignment='bottom', bbox=props)
         ax.set_ylim(plot_pc_lims)
 
-        np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header=textstr)
+        # np.savetxt(f'(E_p={pulse_energies / e},tau={tau},gamma={gamma},alpha={alpha}).txt', pc, header=textstr)
 
     if logscale:
         # ax.set_xscale('log')

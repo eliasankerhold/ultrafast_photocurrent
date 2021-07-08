@@ -2,11 +2,15 @@ import subprocess
 import numpy as np
 from multiprocessing import cpu_count
 import sys
+import os
+from datetime import datetime
 
 # # NATURAL CONSTANTS
 h = 6.62607015e-34
 c = 2.99792458e8
 e = 1.602176634e-19
+
+wdir = os.getcwd()
 
 
 def parameter_packer(tasks, alphas, gammas, taus, energies, powers, time_range, time_resolution, delta_t_range,
@@ -53,27 +57,34 @@ def permutations_creator(length1, length2, *args):
     return perms, total
 
 
+########################################################################################################################
+# SIMULATION SETUP
+number_of_subprocesses = 4
+number_of_tasks = 'auto'
+folder_name = 'test'
 # CONSTANT PARAMETERS
 # exciton density simulation
 time_range = (0, 101e-11)  # time range
 diff_solver_resolution = int(1e6)  # resolution
 # time-resolved photocurrent simulation
 delta_t_sweep = (-10e-11, 5e-12)  # delta_t range
-delta_t_resolution = int(5e1 + 1)  # resolution
+delta_t_resolution = int(1e1 + 1)  # resolution
 
 # SWEEPABLE PARAMETERS
-# device - first entry is MoSe2 (top), second is MoS2 (bottom)
-alpha_mos2 = smart_range_creator(1, 2, 2)
-alpha_mose2 = smart_range_creator(1)
-gamma_mos2 = smart_range_creator(1)
-gamma_mose2 = smart_range_creator(1, 6, 3)
-tau_mos2 = smart_range_creator(1)
-tau_mose2 = smart_range_creator(1)
+# device
+alpha_mos2 = smart_range_creator(0)
+alpha_mose2 = smart_range_creator(0)
+gamma_mos2 = smart_range_creator(0.11, 1.11, 4) * 1e-4
+gamma_mose2 = smart_range_creator(0.01, 10, 2) * 1e-4
+tau_mos2 = smart_range_creator(225) * 1e-12
+tau_mose2 = smart_range_creator(25) * 1e-12
 # setup
-pulse_one_energy = smart_range_creator(1, 2, 1) * e
-pulse_two_energy = smart_range_creator(1) * e
+pulse_one_energy = smart_range_creator(1.62) * e
+pulse_two_energy = smart_range_creator(1.62) * e
 power_one = smart_range_creator(1)
 power_two = smart_range_creator(1)
+########################################################################################################################
+
 
 permutations, total_perms = permutations_creator(len(alpha_mos2), len(alpha_mose2), len(gamma_mos2), len(gamma_mose2),
                                                  len(tau_mos2), len(tau_mose2), len(pulse_one_energy),
@@ -83,20 +94,20 @@ packed_list = [alpha_mos2, alpha_mose2, gamma_mos2, gamma_mose2, tau_mos2, tau_m
                pulse_two_energy, power_one, power_two]
 
 logical_cores = cpu_count()
-number_of_tasks = 3
-number_of_subprocesses = 4
-save_index = 1
-folder_name = 'test'
+if number_of_tasks == 'auto':
+    if number_of_subprocesses > logical_cores:
+        print(f'Too many subprocesses. Cannot run {number_of_subprocesses} subprocesses on {logical_cores} cores.')
+        sys.exit('Aborted.')
+    number_of_tasks = int(logical_cores / number_of_subprocesses)
 
 if number_of_tasks * number_of_subprocesses > logical_cores:
-    print(f'TOO MANY TASKS! {logical_cores} logical cores were found. Cannot run {number_of_subprocesses} processes with '
-          f'{number_of_tasks} tasks each.')
-    sys.exit('Aborted for precaution.')
+    print(
+        f'TOO MANY TASKS! {logical_cores} logical cores were found. Cannot run {number_of_subprocesses} processes with '
+        f'{number_of_tasks} tasks each.')
+    sys.exit('Aborted.')
 
 param_collection = []
 sps = []
-
-# os.system("cmd /k echo I am working on it!")
 
 for i, p in enumerate(permutations):
     param_collection.append(
@@ -108,10 +119,26 @@ for i, p in enumerate(permutations):
 param_collection = [param_collection[i:i + number_of_subprocesses] for i in
                     range(0, len(param_collection), number_of_subprocesses)]
 
+progress = 0
+start = datetime.now()
+print(
+    f'{start}: Starting sweep... Simulating {total_perms} different parameter configurations using '
+    f'{number_of_subprocesses} processes with {number_of_tasks} tasks each.')
 for i, paramset in enumerate(param_collection):
     for k, sp in enumerate(range(number_of_subprocesses)):
-        sps.append(subprocess.Popen(f'multi_core_simulation.py {paramset[k]}', stdout=subprocess.PIPE, shell=True))
+        if k >= total_perms:
+            break
+        sps.append(
+            subprocess.Popen([sys.executable, f'{wdir}\\multi_core_simulation.py', paramset[k]], stdout=subprocess.PIPE,
+                             shell=True))
     for sp in sps:
-        sp.communicate()
+        text, err = sp.communicate()
+        if 'error' in str(text).lower():
+            print(text)
         sp.terminate()
     sps = []
+    progress = (i + 1) * (k + 1) / total_perms * 100
+    print(f'-- Overall progress: {progress:.2f} %')
+
+duration = datetime.now() - start
+print(f'Simulation done. Total duration: {duration}')
