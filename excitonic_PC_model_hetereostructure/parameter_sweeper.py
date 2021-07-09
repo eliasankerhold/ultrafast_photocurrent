@@ -129,8 +129,8 @@ for i, paramset in enumerate(param_collection):
         if k >= total_perms:
             break
         sps.append(
-            subprocess.Popen([sys.executable, f'{wdir}\\multi_core_simulation.py', paramset[k]], stdout=subprocess.PIPE,
-                             shell=True))
+            subprocess.Popen([sys.executable, os.path.join(wdir, 'multi_core_simulation.py'), paramset[k]],
+                             stdout=subprocess.PIPE, shell=True))
     for sp in sps:
         text, err = sp.communicate()
         if 'error' in text.decode('utf-8'):
