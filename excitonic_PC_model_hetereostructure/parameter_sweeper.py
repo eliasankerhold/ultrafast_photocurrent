@@ -133,11 +133,11 @@ for i, paramset in enumerate(param_collection):
                              shell=True))
     for sp in sps:
         text, err = sp.communicate()
-        if 'error' in str(text).lower():
-            print(text)
+        if 'error' in text.decode('utf-8'):
+            print(text.decode('utf-8'))
         sp.terminate()
     sps = []
-    progress = (i + 1) * (k + 1) / total_perms * 100
+    progress = (i + 1) * number_of_subprocesses / total_perms * 100
     print(f'-- Overall progress: {progress:.2f} %')
 
 duration = datetime.now() - start
